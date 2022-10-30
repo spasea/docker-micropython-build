@@ -48,12 +48,6 @@ ARG IDF_CHECKOUT_REF=
 ARG IDF_CLONE_SHALLOW=
 ARG IDF_INSTALL_TARGETS=all
 
-ARG MPY_CLONE_URL=https://github.com/micropython/micropython.git
-ARG MPY_CLONE_BRANCH_OR_TAG=v1.19.1
-
-ARG MODULES_CLONE_URL=https://github.com/spasea/esp32-modules.git
-ARG MODULES_CLONE_BRANCH_OR_TAG=master
-
 ENV IDF_PATH=/opt/esp/idf
 ENV IDF_TOOLS_PATH=/opt/esp
 
@@ -91,8 +85,15 @@ ENV IDF_PYTHON_CHECK_CONSTRAINTS=no
 # Ccache is installed, enable it by default
 ENV IDF_CCACHE_ENABLE=1
 
+ARG MPY_CLONE_URL=https://github.com/micropython/micropython.git
+ARG MPY_CLONE_BRANCH_OR_TAG=v1.19.1
+
 RUN git clone $MPY_CLONE_URL && cd /micropython && git checkout $MPY_CLONE_BRANCH_OR_TAG \
   && git pull origin $MPY_CLONE_BRANCH_OR_TAG
+
+ARG MODULES_CLONE_URL=https://github.com/spasea/esp32-modules.git
+ARG MODULES_CLONE_BRANCH_OR_TAG=master
+
 RUN cd /micropython/ports/esp32 && rm -rf modules && git clone $MODULES_CLONE_URL modules && cd modules \
   && git checkout $MODULES_CLONE_BRANCH_OR_TAG && git pull origin $MODULES_CLONE_BRANCH_OR_TAG && cd ../ && make submodules
 
