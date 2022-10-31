@@ -7,7 +7,7 @@ docker build -t my-esp-build .
 ### Enter container
 
 ```bash
-docker run --rm -v $PWD/build:/build --privileged -it my-esp-build
+docker run --rm -v $PWD:/project --privileged -w /project -it my-esp-build
 ```
 
 ### When entering container
