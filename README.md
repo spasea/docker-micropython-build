@@ -23,7 +23,7 @@ cp -rf build-GENERIC/ /build
 ```
 
 ## Execution of esptool
-In case `esptool.py` execution doesn't work for you - you can try to run it with `python -m esptool` or `python3 -m esptool`. This also is applicable to bash scripts
+In case `esptool.py` execution doesn't work for you - you can try to run it with `python -m esptool` or `python3 -m esptool`. This also is applicable to bash scripts. [Docs](https://docs.espressif.com/projects/esptool/en/latest/esp32/installation.html)
 
 ## Manual commands
 
