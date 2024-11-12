@@ -1,10 +1,8 @@
+# Use a smaller base image
 FROM ubuntu:20.04
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-RUN : \
-  && apt-get update \
-  && apt-get install -y \
+RUN apt update && \
+    apt install -y --no-install-recommends \
     apt-utils \
     bison \
     ca-certificates \
@@ -22,81 +20,89 @@ RUN : \
     libusb-1.0-0-dev \
     make \
     ninja-build \
+    openssh-client \
     python3 \
+    python3-pip \
     python3-venv \
     ruby \
     unzip \
     wget \
     xz-utils \
-    zip \
-  && apt-get autoremove -y \
-  && rm -rf /var/lib/apt/lists/* \
-  && update-alternatives --install /usr/bin/python python /usr/bin/python3 10 \
-  && :
+    zip && \
+    apt autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
-# To build the image for a branch or a tag of IDF, pass --build-arg IDF_CLONE_BRANCH_OR_TAG=name.
-# To build the image with a specific commit ID of IDF, pass --build-arg IDF_CHECKOUT_REF=commit-id.
-# It is possibe to combine both, e.g.:
-#   IDF_CLONE_BRANCH_OR_TAG=release/vX.Y
-#   IDF_CHECKOUT_REF=<some commit on release/vX.Y branch>.
-# Use IDF_CLONE_SHALLOW=1 to peform shallow clone (i.e. --depth=1 --shallow-submodules)
-# Use IDF_INSTALL_TARGETS to install tools only for selected chip targets (CSV)
+# Set Python3 as the default Python
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
-ARG IDF_CLONE_URL=https://github.com/espressif/esp-idf.git
-ARG IDF_CLONE_BRANCH_OR_TAG=v4.4
-ARG IDF_CHECKOUT_REF=
-ARG IDF_CLONE_SHALLOW=
+# Install Git LFS
+RUN git lfs install
+
+# Configure SSH for GitHub and set permissions
+RUN mkdir -p /root/.ssh && \
+    ssh-keyscan -t rsa github.com >> /root/.ssh/known_hosts
+
+# Configure Git settings for large transfers
+RUN git config --global http.postBuffer 524288000 && \
+    git config --global http.lowSpeedLimit 0 && \
+    git config --global http.lowSpeedTime 99999
+
+# Define arguments at the top for easier customization
+ARG DEBIAN_FRONTEND=noninteractive
+ARG IDF_CLONE_URL=git@github.com:espressif/esp-idf.git
+ARG IDF_CLONE_BRANCH_OR_TAG=v5.2.2
+ARG IDF_CHECKOUT_REF=v5.2.2
 ARG IDF_INSTALL_TARGETS=all
 
+# Define environment variables
 ENV IDF_PATH=/opt/esp/idf
 ENV IDF_TOOLS_PATH=/opt/esp
-
-RUN echo IDF_CHECKOUT_REF=$IDF_CHECKOUT_REF IDF_CLONE_BRANCH_OR_TAG=$IDF_CLONE_BRANCH_OR_TAG && \
-    git clone --recursive \
-      ${IDF_CLONE_SHALLOW:+--depth=1 --shallow-submodules} \
-      ${IDF_CLONE_BRANCH_OR_TAG:+-b $IDF_CLONE_BRANCH_OR_TAG} \
-      $IDF_CLONE_URL $IDF_PATH && \
-    if [ -n "$IDF_CHECKOUT_REF" ]; then \
-      cd $IDF_PATH && \
-      if [ -n "$IDF_CLONE_SHALLOW" ]; then \
-        git fetch origin --depth=1 --recurse-submodules ${IDF_CHECKOUT_REF}; \
-      fi && \
-      git checkout $IDF_CHECKOUT_REF && \
-      git submodule update --init --recursive; \
-    fi
-
-# Install all the required tools
-RUN : \
-  && update-ca-certificates --fresh \
-  && $IDF_PATH/tools/idf_tools.py --non-interactive install required --targets=${IDF_INSTALL_TARGETS} \
-  && $IDF_PATH/tools/idf_tools.py --non-interactive install cmake
-
-RUN apt-get update && apt-get install -y \
-  python3-pip
-
-RUN $IDF_PATH/tools/idf_tools.py --non-interactive install-python-env \
-  && rm -rf $IDF_TOOLS_PATH/dist \
-  && :
-
-# The constraint file has been downloaded and the right Python package versions installed. No need to check and
-# download this at every invocation of the container.
+ENV MPY_PATH=/micropython
 ENV IDF_PYTHON_CHECK_CONSTRAINTS=no
-
-# Ccache is installed, enable it by default
 ENV IDF_CCACHE_ENABLE=1
 
-ARG MPY_CLONE_URL=https://github.com/micropython/micropython.git
-ARG MPY_CLONE_BRANCH_OR_TAG=v1.19.1
+# Use SSH for cloning the repository with build secrets
+# The --mount=type=ssh allows SSH forwarding in Docker build
+RUN --mount=type=ssh \
+    git clone --depth=1 -b $IDF_CLONE_BRANCH_OR_TAG $IDF_CLONE_URL $IDF_PATH && \
+    cd $IDF_PATH && \
+    if [ -n "$IDF_CHECKOUT_REF" ]; then \
+      git fetch origin $IDF_CHECKOUT_REF && \
+      git checkout $IDF_CHECKOUT_REF; \
+    fi && \
+    git submodule update --init --depth=1 --recursive
 
-RUN git clone $MPY_CLONE_URL && cd /micropython && git checkout $MPY_CLONE_BRANCH_OR_TAG \
-  && git pull origin $MPY_CLONE_BRANCH_OR_TAG
+# Install all the required tools for the specified chip targets
+RUN update-ca-certificates --fresh
+RUN $IDF_PATH/tools/idf_tools.py --non-interactive install required --targets=${IDF_INSTALL_TARGETS}
+RUN $IDF_PATH/tools/idf_tools.py --non-interactive install cmake
+
+# Install Python environment
+RUN $IDF_PATH/tools/idf_tools.py --non-interactive install-python-env && \
+    rm -rf $IDF_TOOLS_PATH/dist
+
+# Clone MicroPython and additional modules
+ARG MPY_CLONE_URL=https://github.com/micropython/micropython.git
+ARG MPY_CLONE_BRANCH_OR_TAG=v1.25.0-preview
+
+RUN git clone $MPY_CLONE_URL && \
+    cd $MPY_PATH && git checkout $MPY_CLONE_BRANCH_OR_TAG && git pull origin $MPY_CLONE_BRANCH_OR_TAG
 
 ARG MODULES_CLONE_URL=https://github.com/spasea/esp32-modules.git
-ARG MODULES_CLONE_BRANCH_OR_TAG=master
+ARG MODULES_CLONE_BRANCH_OR_TAG=1.25.0
 
-RUN cd /micropython/ports/esp32 && rm -rf modules && git clone $MODULES_CLONE_URL modules && cd modules \
-  && git checkout $MODULES_CLONE_BRANCH_OR_TAG && git pull origin $MODULES_CLONE_BRANCH_OR_TAG && cd ../ && make submodules
+RUN chmod 700 -R $IDF_PATH
+RUN . $IDF_PATH/export.sh && \
+    cd $MPY_PATH/ports/esp32 && \
+    rm -rf modules && \
+    git clone $MODULES_CLONE_URL modules && \
+    cd modules && \
+    git checkout $MODULES_CLONE_BRANCH_OR_TAG && \
+    git pull origin $MODULES_CLONE_BRANCH_OR_TAG && \
+    cd $MPY_PATH && make -C mpy-cross && \
+    cd $MPY_PATH/ports/esp32 && make BOARD=ESP32_GENERIC submodules
 
-RUN chmod 777 /opt /micropython
+# Set permissions for shared folders
+RUN chmod 777 /opt $MPY_PATH
 
 CMD [ "/bin/bash" ]
