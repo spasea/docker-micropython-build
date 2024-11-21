@@ -89,7 +89,7 @@ RUN git clone $MPY_CLONE_URL && \
     cd $MPY_PATH && git checkout $MPY_CLONE_BRANCH_OR_TAG && git pull origin $MPY_CLONE_BRANCH_OR_TAG
 
 ARG MODULES_CLONE_URL=https://github.com/spasea/esp32-modules.git
-ARG MODULES_CLONE_BRANCH_OR_TAG=1.25.0
+ARG MODULES_CLONE_BRANCH_OR_TAG=master
 
 RUN chmod 700 -R $IDF_PATH
 RUN . $IDF_PATH/export.sh && \

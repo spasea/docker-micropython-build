@@ -42,6 +42,14 @@ esptool.py --port /dev/tty.usbserial-0001 -b 460800 --before default_reset --aft
 
 ## Bash scripts
 
+### Build image
+```bash
+ssh-add ~/.ssh/id_rsa
+```
+```bash
+bash build-image.sh
+```
+
 ### Enter container
 ```bash
 bash run.sh
